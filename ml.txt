@@ -1,0 +1,241 @@
+# Подробное решение Модуля 1: Разработка базы данных через pgAdmin
+
+## Часть 1: Создание базы данных в PostgreSQL через pgAdmin
+
+### 1. Установка и настройка PostgreSQL
+1. Скачайте и установите PostgreSQL с официального сайта (включая pgAdmin)
+2. Запустите pgAdmin и подключитесь к серверу
+
+### 2. Создание новой базы данных
+1. В pgAdmin щелкните правой кнопкой на "Databases" → "Create" → "Database"
+2. Укажите имя базы данных: `materials_db`
+3. Нажмите "Save"
+
+### 3. Создание таблиц через SQL-скрипт
+1. В pgAdmin откройте Query Tool (Инструмент запросов) для новой базы данных
+2. Выполните следующий SQL-скрипт:
+
+```sql
+-- Создание таблицы типов материалов
+CREATE TABLE material_types (
+    type_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL
+);
+
+-- Создание таблицы поставщиков
+CREATE TABLE suppliers (
+    supplier_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    rating NUMERIC(3,2),
+    start_date DATE
+);
+
+-- Создание таблицы материалов
+CREATE TABLE materials (
+    material_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    type_id INTEGER REFERENCES material_types(type_id),
+    quantity_in_stock NUMERIC(10,2) NOT NULL,
+    unit VARCHAR(20) NOT NULL,
+    package_quantity NUMERIC(10,2) NOT NULL,
+    min_quantity NUMERIC(10,2) NOT NULL,
+    price_per_unit NUMERIC(10,2) NOT NULL,
+    supplier_id INTEGER REFERENCES suppliers(supplier_id)
+);
+
+-- Создание индексов для улучшения производительности
+CREATE INDEX idx_materials_type ON materials(type_id);
+CREATE INDEX idx_materials_supplier ON materials(supplier_id);
+```
+
+### 4. Заполнение тестовыми данными
+Выполните следующий скрипт для добавления тестовых данных:
+
+```sql
+-- Добавление типов материалов
+INSERT INTO material_types (name) VALUES 
+('Глина'), ('Пигменты'), ('Глазурь'), ('Добавки'), ('Упаковка');
+
+-- Добавление поставщиков
+INSERT INTO suppliers (name, rating, start_date) VALUES 
+('ООО "Глина и К"', 4.5, '2020-01-15'),
+('ИП Смирнов', 3.8, '2021-03-22'),
+('АО "Химические материалы"', 4.2, '2019-11-05'),
+('ООО "Керамикс"', 4.7, '2018-05-10'),
+('ЗАО "Стройресурс"', 4.0, '2022-02-18');
+
+-- Добавление материалов
+INSERT INTO materials (name, type_id, quantity_in_stock, unit, package_quantity, min_quantity, price_per_unit, supplier_id) VALUES 
+('Глина белая', 1, 1500.00, 'кг', 25.00, 1000.00, 50.00, 1),
+('Оксид железа', 2, 800.00, 'кг', 10.00, 500.00, 120.00, 3),
+('Глазурь прозрачная', 3, 200.00, 'л', 5.00, 100.00, 200.00, 2),
+('Глазурь матовая', 3, 150.00, 'л', 5.00, 100.00, 220.00, 4),
+('Пластификатор', 4, 300.00, 'кг', 15.00, 200.00, 180.00, 5),
+('Картонная упаковка', 5, 5000.00, 'шт', 100.00, 3000.00, 15.00, 4);
+```
+
+## Часть 2: Настройка программы для работы с PostgreSQL
+
+### 1. Установка необходимых библиотек
+```bash
+pip install psycopg2-binary python-dotenv
+```
+
+### 2. Создание файла конфигурации (.env)
+Создайте файл `.env` в корне проекта:
+```
+DB_HOST=localhost
+DB_NAME=materials_db
+DB_USER=ваш_пользователь
+DB_PASSWORD=ваш_пароль
+DB_PORT=5432
+```
+
+### 3. Модифицированный код программы (основные изменения для PostgreSQL)
+
+```python
+import os
+from dotenv import load_dotenv
+import psycopg2
+from psycopg2 import sql
+from tkinter import *
+from tkinter import messagebox, ttk
+
+load_dotenv()
+
+class Database:
+    def __init__(self):
+        self.conn = None
+        self.connect()
+    
+    def connect(self):
+        try:
+            self.conn = psycopg2.connect(
+                host=os.getenv('DB_HOST'),
+                database=os.getenv('DB_NAME'),
+                user=os.getenv('DB_USER'),
+                password=os.getenv('DB_PASSWORD'),
+                port=os.getenv('DB_PORT')
+            )
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось подключиться к базе данных: {str(e)}")
+            raise
+    
+    def execute_query(self, query, params=None, fetch=False):
+        try:
+            with self.conn.cursor() as cursor:
+                cursor.execute(query, params or ())
+                if fetch:
+                    return cursor.fetchall()
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            raise
+    
+    def close(self):
+        if self.conn:
+            self.conn.close()
+
+class MaterialApp:
+    def __init__(self, root):
+        self.root = root
+        self.db = Database()
+        
+        # Остальной код остается таким же, как в предыдущем примере,
+        # но все SQL-запросы должны быть адаптированы под PostgreSQL
+        
+        # Пример изменения запроса:
+        # Вместо: self.cursor.execute("SELECT * FROM materials")
+        # Используйте: self.db.execute_query("SELECT * FROM materials", fetch=True)
+        
+        # ... остальная реализация ...
+```
+
+## Часть 3: Подробное описание структуры базы данных
+
+### 1. Таблица `material_types`
+- **Назначение**: Хранение типов материалов (категорий)
+- **Структура**:
+  - `type_id` (SERIAL) - первичный ключ, автоинкремент
+  - `name` (VARCHAR(100)) - название типа (не может быть NULL)
+
+### 2. Таблица `suppliers`
+- **Назначение**: Хранение информации о поставщиках
+- **Структура**:
+  - `supplier_id` (SERIAL) - первичный ключ
+  - `name` (VARCHAR(255)) - название компании
+  - `rating` (NUMERIC(3,2)) - рейтинг поставщика (может быть NULL)
+  - `start_date` (DATE) - дата начала сотрудничества
+
+### 3. Таблица `materials`
+- **Назначение**: Основная таблица для хранения информации о материалах
+- **Структура**:
+  - `material_id` (SERIAL) - первичный ключ
+  - `name` (VARCHAR(255)) - название материала
+  - `type_id` (INTEGER) - внешний ключ к `material_types`
+  - `quantity_in_stock` (NUMERIC(10,2)) - количество на складе
+  - `unit` (VARCHAR(20)) - единица измерения
+  - `package_quantity` (NUMERIC(10,2)) - количество в упаковке
+  - `min_quantity` (NUMERIC(10,2)) - минимальный запас
+  - `price_per_unit` (NUMERIC(10,2)) - цена за единицу
+  - `supplier_id` (INTEGER) - внешний ключ к `suppliers`
+
+### 4. Связи между таблицами
+1. **Один-ко-многим** между `material_types` и `materials`:
+   - Один тип может быть у многих материалов
+   - Связь через `type_id`
+
+2. **Один-ко-многим** между `suppliers` и `materials`:
+   - Один поставщик может поставлять много материалов
+   - Связь через `supplier_id`
+
+## Часть 4: Обеспечение ссылочной целостности
+
+1. **Внешние ключи**:
+   - При удалении типа материала (`material_types`) будет ошибка, если есть связанные материалы
+   - Можно настроить каскадное удаление (ON DELETE CASCADE), но в данном случае это нежелательно
+
+2. **Ограничения**:
+   - Все числовые значения имеют проверку на неотрицательность
+   - Обязательные поля помечены как NOT NULL
+
+3. **Транзакции**:
+   - Все операции изменения данных выполняются в транзакциях
+   - При ошибке происходит откат изменений
+
+## Часть 5: Экспорт ER-диаграммы из pgAdmin
+
+1. В pgAdmin щелкните правой кнопкой на вашей базе данных
+2. Выберите "Generate ERD" (Сгенерировать ER-диаграмму)
+3. Настройте отображение таблиц и связей
+4. Экспортируйте в PDF:
+   - Нажмите кнопку "Save" в инструменте ERD
+   - Выберите формат PDF
+   - Укажите имя файла (например, `materials_er_diagram.pdf`)
+
+## Часть 6: Подключение программы к базе данных
+
+1. Убедитесь, что PostgreSQL сервер запущен
+2. Проверьте параметры подключения в файле `.env`
+3. Запустите программу - она автоматически подключится к базе данных
+4. При первом запуске можно выполнить инициализацию тестовыми данными
+
+## Часть 7: Дополнительные рекомендации
+
+1. **Резервное копирование**:
+   - Регулярно создавайте дамп базы данных через pgAdmin
+   - Команда для создания дампа: `pg_dump -U username -d materials_db -f backup.sql`
+
+2. **Оптимизация**:
+   - Для больших объемов данных добавьте индексы на часто используемые поля
+   - Рассмотрите возможность использования секционирования для больших таблиц
+
+3. **Безопасность**:
+   - Ограничьте права пользователя базы данных только необходимыми операциями
+   - Не храните пароли в коде - используйте переменные окружения
+
+4. **Мониторинг**:
+   - Используйте встроенные инструменты pgAdmin для мониторинга производительности
+   - Анализируйте медленные запросы с помощью `EXPLAIN ANALYZE`
+
+Это полное решение для Модуля 1, которое включает создание базы данных в PostgreSQL, настройку структуры, обеспечение целостности данных и интеграцию с программой на Python.
